@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Study Break Timer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📚%3C/text%3E%3C/svg%3E">
+<style>
+html,body{height:100%;margin:0;background:#d9b8ec;overflow:hidden;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+#stage{position:fixed;inset:0;cursor:none;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;overflow:hidden;background:#d9b8ec center/cover no-repeat}
+#rig{position:absolute;opacity:0;transition:opacity .4s;transform-origin:50% 85%}
+#rig img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none;transform-origin:50% 50%}
+#rig.bounce{animation:bounce .7s cubic-bezier(.3,1.6,.5,1)}
+#rig.sway{animation:sway 1.4s ease-in-out infinite alternate}
+@keyframes bounce{0%{transform:scale(1,1)}25%{transform:scale(1.12,.88)}55%{transform:translateY(-3%) scale(.94,1.08)}100%{transform:scale(1,1)}}
+@keyframes sway{0%{transform:rotate(-2deg)}100%{transform:rotate(2deg)}}
+@keyframes hop{0%{transform:translateY(0)}30%{transform:translateY(-14px) scale(1.04)}55%{transform:translateY(0) scale(.96)}75%{transform:translateY(-5px)}100%{transform:translateY(0)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}50%{transform:rotate(5deg)}75%{transform:rotate(-3deg)}}
+#rig.hop{animation:hop .8s ease-out}
+#rig.wiggle{animation:wiggle .55s ease-in-out}
+#talk{
+  position:absolute;left:0;top:0;max-width:min(82vw,360px);
+  box-sizing:border-box;padding:6px 10px;
+  color:#5b3a63;font-weight:900;font-size:22px;line-height:1.2;text-align:center;
+  pointer-events:none;opacity:0;
+  transform:translate(-50%,-50%) scale(.85);
+  transition:opacity .4s ease, transform .5s cubic-bezier(.3,1.6,.5,1);
+  text-shadow:0 2px 0 #fff, 0 0 12px #fff, 0 0 4px #fff;
+  z-index:5
+}
+#talk.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#talk.excited{font-size:24px;color:#e0457b}
+#talk.surprised{font-size:23px;color:#8b4bc9}
+#talk.crying{font-size:18px;font-style:italic;color:#4f6fb0}
+#talk.calm{font-size:19px;color:#4f7f9c}
+#talk.love{color:#d13a78}
+#talk.yum{color:#e07a2a}
+.p{position:absolute;pointer-events:none;opacity:0}
+img.p{width:26px;height:26px}
+span.p{font:900 28px "Trebuchet MS",sans-serif;color:#a879e0;text-shadow:0 2px 0 #fff}
+#hand{position:absolute;left:0;top:0;width:96px;pointer-events:none;opacity:0;transition:opacity .25s;transform:translate(-30%,-15%);z-index:6}
+#hint{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);left:0;right:0;text-align:center;color:#5b3a63;opacity:.75;font-size:15px;pointer-events:none;transition:opacity .6s}
+#tapstart{position:absolute;inset:0;display:grid;place-items:center;background:#d9b8eccc;color:#5b3a63;font-weight:900;font-size:20px;text-align:center;padding:20px;z-index:20;cursor:pointer}
+
+#pudding{
+  position:absolute;
+  width:80px;height:80px;
+  pointer-events:auto;cursor:grab;z-index:7;
+  filter:drop-shadow(0 6px 8px #0003);
+  transition:transform .25s cubic-bezier(.3,1.6,.5,1);
+  animation:pudFloat 2.6s ease-in-out infinite;
+  -webkit-user-drag:none;
+}
+@keyframes pudFloat{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6px) rotate(3deg)}}
+#pudding:active{cursor:grabbing}
+
+.pud-drag{
+  position:absolute;width:80px;height:80px;
+  pointer-events:none;z-index:8;
+  filter:drop-shadow(0 6px 10px #0005);
+  transform:translate(-50%,-50%) scale(1.1) rotate(-6deg);
+  transition:transform .15s;
+}
+.pud-drag.over-sprite{
+  transform:translate(-50%,-50%) scale(1.25) rotate(0);
+  filter:drop-shadow(0 0 14px #ffb8dc) drop-shadow(0 6px 10px #0005);
+}
+.pud-puff{
+  position:absolute;width:80px;height:80px;pointer-events:none;z-index:8;
+  animation:pudPuff .5s ease-out forwards;
+}
+@keyframes pudPuff{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(.2) rotate(40deg)}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="rig"></div>
+  <div id="talk"></div>
+  <img id="hand" alt="">
+  <img id="pudding" alt="">
+  <div id="hint">poke me, or pet me anywhere</div>
+  <div id="tapstart">tap / click to start 🔈</div>
+</div>
+<script>
+/* ================= EDIT ME ================= */
+const CONFIG = {
+  dir: "",
+  bgDesktop: "https://files.catbox.moe/6orceu.png",
+  bgMobile:  "https://files.catbox.moe/64r4zb.png",
+  idleOpen:   "https://files.catbox.moe/cmk0s0.png",
+  idleClosed: "https://files.catbox.moe/8ymoch.png",
+  sleep:      "https://files.catbox.moe/f04vya.png",
+  earLeft:  "https://files.catbox.moe/yhor76.png",
+  earRight: "https://files.catbox.moe/gt17yi.png",
+  tail:     "https://files.catbox.moe/6cs7h0.png",
+
+  munch1: "https://files.catbox.moe/umnltz.png",
+  munch2: "https://files.catbox.moe/anxjbz.png",
+  munch3: "https://files.catbox.moe/lm4rbi.png",   // finish/hop frame
+
+  pudding: "https://files.catbox.moe/knqv2y.png",
+
+  // default = plain hand; dragging = petting hand
+  cursorHand: "https://files.catbox.moe/q9z9r8.png",
+  cursorPet:  "https://files.catbox.moe/g94iwi.png",
+
+  layers: ["tail", "sprite", "earLeft", "earRight"],
+  heart: null, zzz: null,
+
+  bgm:       "https://files.catbox.moe/zchgwe.mp3",
+  purr:      "https://files.catbox.moe/53oqx1.mp3",
+  pokeSfx:   "https://files.catbox.moe/asdof1.mp3",
+  bgmVolume: 0.5,
+
+  size: { vw: .95, vh: .68, maxPx: 900 },
+  anchor: { x: .5, y: .6 },
+  pivots: { leftEar: { x: 34, y: 24 }, rightEar: { x: 66, y: 24 }, tail: { x: 62, y: 80 } },
+  earSign: { leftEar: -1, rightEar: 1 },
+  headZone: { x: .5, y: .42, w: .5, h: .36 },
+  hitInset: .1, bubbleAt: { x: .5, y: .14 },
+  patStartPx: 30, calmAfterMs: 3500, sleepAfterMs: 10000, pokeMs: 1500,
+  randomChance: .16, blinkMin: 2000, blinkMax: 5000, blinkHold: 130,
+
+  eat: {
+    munchEveryMs: 170,
+    munchTimeMs: 1800,
+    finishHoldMs: 5000,   // <-- 5 seconds of the happy finish pose 🍮
+    eatRadius: .85
+  },
+
+  // EARS: much calmer now (gentler amplitude, longer gaps, fewer per burst)
+  ear: {
+    idleGapMin: 4500, idleGapMax: 9000,
+    patGapMin: 2000,  patGapMax: 4000,
+    sleepGapMin: 7000, sleepGapMax: 12000,
+    eatGapMin:  1200, eatGapMax:  2400,   // was a fixed 250ms — way too twitchy
+    burstCountMin: 1, burstCountMax: 2,   // was 2–3
+    twitchMs: 200,                        // slower per twitch (was 160)
+    twitchAmp: 4                          // much smaller angle (was 9)
+  }
+};
+
+const URL_BLEE      = "https://files.catbox.moe/pihx4t.png";
+const URL_EXCITED   = "https://files.catbox.moe/xpnq6j.png";
+const URL_LOVE      = "https://files.catbox.moe/t4sdyi.png";
+const URL_SURPRISED = "https://files.catbox.moe/2w1deu.png";
+const URL_CRYING    = "https://files.catbox.moe/xkt6bf.png";
+const URL_CALM      = "https://files.catbox.moe/zm0t3f.png";
+
+const FACES = [
+  { img: URL_EXCITED,   pools: ["excited"],           cls: "excited" },
+  { img: URL_BLEE,      pools: ["random", "excited"], cls: "excited" },
+  { img: URL_LOVE,      pools: ["love"],              cls: "love" },
+  { img: URL_SURPRISED, pools: ["surprised"],         cls: "surprised" },
+  { img: URL_CRYING,    pools: ["crying"],            cls: "crying" },
+  { img: URL_CALM,      pools: ["calm"],              cls: "calm" }
+];
+
+const DIALOGUE = {
+  excited: [
+    `YOU GOT THIS, LOVE!!! 💥💥`, `GO GO GO, MY SHARK!! 🦈💜`, `I BELIEVE IN YOUUU!!`,
+    `YOU'VE WORKED SO HARD—NOW SHOW THAT EXAM WHO'S BOSS!!`, `ONE QUESTION AT A TIME!! YOU CAN DO IT!!`,
+    `YOUR FERRET SUPPORT SQUAD IS CHEERING FOR YOU!! 📣🐾`, `I KNOW YOU CAN DO THIS!! NOW GO BE AMAZING!!`,
+    `EXAM? MORE LIKE EXTERMINATE THE EXAM. GET IT!!!`, `YOUR BRAIN IS FULL OF KNOWLEDGE!! USE THE GOOD STUFF!!`,
+    `I'M ROOTING FOR YOUUU!! 💕`, `HEHEHE YOU POKED ME.`, `LOOK!! I HAVE A TAIL!!`, `I HAVE DISCOVERED ANOTHER COOKIE.`,
+    `SHHHH I'M THINKING ABOUT PUDDING.`, `DO YOU THINK I COULD FIT IN YOUR POCKET?`, `FERRET DETECTED. FERRET ACTIVATED.`],
+  crying: [
+    `Hey… don't be too hard on yourself, okay? 🥺`, `It's okay if you don't know everything. Just do what you can.`,
+    `You've already worked so hard… I'm proud of you.`, `Please remember to breathe, Love… one question at a time.`,
+    `You don't have to be perfect for me to be proud of you. 💜`, `If it gets difficult, pause for a moment. You've got this.`,
+    `Even if the exam doesn't go perfectly… you'll still be my favorite shark.`, `Please don't forget to eat and drink water while studying… 🥺`,
+    `You're allowed to rest, okay? Resting doesn't mean you're giving up.`, `I'm cheering for you even when you can't hear me.`,
+    `I THINK I MISS YOU. 😭`, `WHO PUT ONIONS IN MY ROOM.`, `My pudding fell… this is the worst day of my life.`,
+    `Can I have a cuddle…? 🥺`, `I saw something cute and it reminded me of you.`, `I accidentally thought about you again.`],
+  surprised: [
+    `LOOK AT YOU GO!!`, `YOU STUDIED ALL THAT?! I'M IMPRESSED!!`, `YOU GOT THIS FAR ALREADY?! KEEP GOING!!`,
+    `HUH?! MY SHARK IS AN ACADEMIC WEAPON?!`, `HUH?! YOU POKED ME?!`, `WHERE DID YOU COME FROM.`, `...YOU SAW NOTHING.`,
+    `WAIT. YOU CAN SEE ME?`, `MY TAIL MOVED BY ITSELF.`, `I HAVE BEEN DISCOVERED.`],
+  calm: [
+    `Take your time. You don't need to rush.`, `Breathe in. Breathe out. You've got this.`, `One little step at a time.`,
+    `You've prepared for this. Trust yourself.`, `It's okay to take a short break.`, `Your best is enough.`,
+    `No matter what happens, I'll still be cheering for you.`, `You've made it this far. Keep going.`,
+    `Don't forget to be kind to yourself.`, `Study hard, rest well, and take care of yourself. 💜`, `I think I'll take a nap.`,
+    `I like being here with you.`, `My tail is warm.`, `I wonder what your mouth tastes like right now.`,
+    `...I forgot what I was going to say.`, `You can stay here for a while.`, `Pat me AGAIN.`],
+  love: [
+    `Good luck, My Love. I'll be waiting for you. 💜`, `Go do your best, Love. I'll be cheering from here!!`,
+    `I'm so proud of how hard you're working.`, `You can do this, babeeeee 🥺🥺💕`, `No matter how the exam goes, I'm proud of you!`,
+    `Now go make your ferret proud 💕`, `I love you. Now go conquer that exam!`, `Come back to me after you've finished, okay?`,
+    `My favorite academic weapon. 🥺👉👈`, `You've got my whole heart cheering for you.`, `I Love Youuuuuuuuuuuuu`,
+    `You are my favorite shark. Don't tell the other sharks ssshhh`, `Can I marry you again? Pretty please?`,
+    `I saw you and forgot how to ferret.`, `You make my heart go !!!`, `Come here. I need affection.`,
+    `I love you more than pudding. This is serious.`, `You're stuck with me 💕`, `I chose you. Unfortunately, there is no refund.`,
+    `My heart belongs to a shark. 🥺🦈`],
+  random: [
+    `Aren't you supposed to be studying? 🤔🤔`, `POKE ME POKE MEEEE!!`, `I MISS YOUUUUU OMFG COME BACKKKK`,
+    `Nuuuuuu exam.... Scary....`, `I love love love love love love love love love love love love love love love love YOU so MUCHHH`,
+    `GO STUDY NO I MEAN REST- UHH DO BOTH!!`, `I miss you 🥺🥺`],
+  sleepPoke: [`H-HUH!?`, `STRANGER ALERT!!`, `5 more minutes...`, `HEADPAT ME AGAIN.`, `..... Meow..? Wait... Dook?`],
+  yum: [
+    `OMNOMNOM THANK YOU 💕`, `MMMM PUDDING!! 🍮`, `CRUNCH CRUNCH CRUNCH`,
+    `YOU'RE THE BEST, YOU KNOW THAT? 🥺`, `I LOVE PUDDING AND I LOVE YOU`,
+    `CAN I HAVE ANOTHER ONE? 👉👈`, `NOM NOM NOM!!!`, `THAT WAS PERFECT 💜`,
+    `I FED. I AM CONTENT.`, `OKAY OKAY ONE MORE AND I'LL BE GOOD`,
+    `THIS IS THE BEST PUDDING I'VE EVER HAD AND I'M NOT SAYING THAT BECAUSE YOU'RE HERE. Okay maybe I am.`],
+  sad: [
+    `H-HUH…? Where'd it go…? 🥺`, `It… it fell… 😭`, `PUDDING NOOOO`,
+    `...was it something I said? 🥺`, `Come back… pwease…`, `My heart… my pudding…`,
+    `I'll just… sit here… 🥺`, `THE PUDDING FLEW AWAY…`, `Did I do something wrong…?`,
+    `Oh… okay… I didn't need it anyway… 🥺`]
+};
+/* ============== END EDIT ME ============== */
+
+const svg = s => "data:image/svg+xml," + encodeURIComponent(s);
+const PH = {
+  heart: svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M16 28C4 19 3 11 8 7.500c3.500-2.500 7 0 8 3 1-3 4.500-5.500 8-3C29 11 28 19 16 28z" fill="#ff5f8f"/></svg>`),
+  pudding: svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M14 30h36l-3 22a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4z" fill="#b3294f"/><ellipse cx="32" cy="30" rx="18" ry="6" fill="#d43b62"/><ellipse cx="32" cy="29" rx="14" ry="4" fill="#f2f0e5"/></svg>`),
+  hand: svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M22 34V14a4 4 0 018 0v16l2-14a4 4 0 018 1l-1 16 5-9a4 4 0 017 3l-6 24c-2 8-8 12-15 12-9 0-16-6-18-15l-3-13a4 4 0 017-2z" fill="#fff" stroke="#5b3a63" stroke-width="3" stroke-linejoin="round"/></svg>`)
+};
+
+const A = f => /^(https?:|data:|\/)/i.test(f) ? f : CONFIG.dir + f;
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), rig = $("rig"), talk = $("talk"), hand = $("hand"), hint = $("hint"), tapstart = $("tapstart"), pudding = $("pudding");
+const U = {
+  open: A(CONFIG.idleOpen),
+  closed: A(CONFIG.idleClosed),
+  sleep: A(CONFIG.sleep),
+  calm: A(URL_CALM),
+  surprised: A(URL_SURPRISED),
+  crying: A(URL_CRYING),
+  munch1: A(CONFIG.munch1),
+  munch2: A(CONFIG.munch2),
+  munch3: A(CONFIG.munch3)
+};
+const heartSrc = CONFIG.heart ? A(CONFIG.heart) : PH.heart;
+
+const CURSOR_DEFAULT  = CONFIG.cursorHand ? A(CONFIG.cursorHand) : PH.hand;
+const CURSOR_DRAGGING = CONFIG.cursorPet  ? A(CONFIG.cursorPet)  : PH.hand;
+hand.src = CURSOR_DEFAULT;
+
+pudding.src = CONFIG.pudding ? A(CONFIG.pudding) : PH.pudding;
+
+/* layers */
+const imgs = { sprite: new Image(), tail: new Image(), earLeft: new Image(), earRight: new Image() };
+["sprite", "tail", "earLeft", "earRight"].forEach(k => imgs[k].crossOrigin = "anonymous");
+imgs.tail.src = A(CONFIG.tail); imgs.earLeft.src = A(CONFIG.earLeft); imgs.earRight.src = A(CONFIG.earRight);
+CONFIG.layers.forEach(k => rig.appendChild(imgs[k]));
+const sprite = imgs.sprite; sprite.src = U.open;
+["leftEar", "rightEar", "tail"].forEach(k => {
+  const el = k === "tail" ? imgs.tail : k === "leftEar" ? imgs.earLeft : imgs.earRight;
+  el.style.transformOrigin = CONFIG.pivots[k].x + "% " + CONFIG.pivots[k].y + "%";
+});
+FACES.forEach(f => { f.url = A(f.img); });
+[U.closed, U.sleep, U.crying, U.munch1, U.munch2, U.munch3].forEach(u => { new Image().src = u; });
+FACES.forEach(f => { new Image().src = f.url; });
+
+/* helpers */
+const recent = [], lastPick = {};
+function pickLine(pools) {
+  const all = [].concat(...pools.map(p => DIALOGUE[p])); let c, n = 0;
+  do { c = all[Math.random() * all.length | 0]; n++; } while (recent.includes(c) && n < 25);
+  recent.push(c); if (recent.length > 10) recent.shift(); return c;
+}
+function pickFace() {
+  let i, n = 0; do { i = Math.random() * FACES.length | 0; n++; } while (i === lastPick.face && n < 20);
+  lastPick.face = i; return FACES[i];
+}
+let mode = "idle", patting = false, patTotal = 0, patStage = 0, lastPatEnd = 0,
+    box = { x: 0, y: 0, w: 1, h: 1 }, nw = 0, nh = 0;
+
+let spriteKind = "idle";
+function setSprite(kind, url) {
+  sprite.src = url;
+  spriteKind = kind;
+  const showEars = kind !== "face";
+  imgs.earLeft.style.display = imgs.earRight.style.display = showEars ? "block" : "none";
+}
+function setSpriteKeepEars(url) {
+  sprite.src = url;
+  spriteKind = "munch";
+  imgs.earLeft.style.display = imgs.earRight.style.display = "block";
+}
+
+/* layout */
+function layout() {
+  if (!nw) return;
+  const W = innerWidth, H = innerHeight;
+  const s = Math.min(CONFIG.size.vw * W / nw, CONFIG.size.vh * H / nh, CONFIG.size.maxPx / Math.max(nw, nh));
+  box = { w: nw * s, h: nh * s }; box.x = W * CONFIG.anchor.x - box.w / 2; box.y = H * CONFIG.anchor.y - box.h / 2;
+  Object.assign(rig.style, { width: box.w + "px", height: box.h + "px", left: box.x + "px", top: box.y + "px" });
+  stage.style.backgroundImage = `url(${A(matchMedia("(orientation:portrait)").matches ? CONFIG.bgMobile : CONFIG.bgDesktop)})`;
+  placePuddingInFront();
+  if (window.placeDebug) placeDebug();
+}
+function placePuddingInFront() {
+  const pw = pudding.offsetWidth || 80, ph = pudding.offsetHeight || 80;
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.98;
+  pudding.style.left = (cx - pw / 2) + "px";
+  pudding.style.top  = (cy - ph * 0.55) + "px";
+}
+const base = new Image();
+base.crossOrigin = "anonymous";
+base.onload = () => { nw = base.naturalWidth; nh = base.naturalHeight; layout(); rig.style.opacity = 1; };
+base.onerror = () => {
+  rig.style.opacity = 1;
+  rig.style.width = "300px"; rig.style.height = "300px";
+  rig.style.background = "#f0f";
+  document.body.insertAdjacentHTML("beforeend",
+    '<div style="position:fixed;inset:0;display:grid;place-items:center;font:16px monospace;color:#000;background:#fff8;text-align:center;padding:20px;z-index:99">' +
+    '❌ Could not load <b>' + U.open + '</b><br><br>Check the URL in the browser.' +
+    '</div>');
+};
+base.src = U.open;
+addEventListener("resize", layout);
+
+const spriteRect = () => ({ x: box.x, y: box.y, w: box.w, h: box.h });
+const head = () => { const z = CONFIG.headZone; return { x: box.x + box.w * (z.x - z.w / 2), y: box.y + box.h * (z.y - z.h / 2), w: box.w * z.w, h: box.h * z.h }; };
+const inside = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+
+/* blink */
+(function blink() {
+  setTimeout(() => {
+    if (mode === "idle" || (mode === "pat" && patStage === 0)) {
+      setSprite("idle", U.closed);
+      setTimeout(() => { if (mode === "idle" || (mode === "pat" && patStage === 0)) setSprite("idle", U.open); }, CONFIG.blinkHold);
+    }
+    blink();
+  }, CONFIG.blinkMin + Math.random() * (CONFIG.blinkMax - CONFIG.blinkMin));
+})();
+
+/* ============ AUDIO ============ */
+const bgmEl  = CONFIG.bgm  ? new Audio(A(CONFIG.bgm))  : null;
+const purrEl = CONFIG.purr ? new Audio(A(CONFIG.purr)) : null;
+
+const SQUEAK_POOL_SIZE = 3;
+const squeakPool = [];
+let squeakIdx = 0;
+if (CONFIG.pokeSfx) {
+  for (let i = 0; i < SQUEAK_POOL_SIZE; i++) {
+    const a = new Audio(A(CONFIG.pokeSfx));
+    a.preload = "auto";
+    squeakPool.push(a);
+  }
+}
+
+if (bgmEl)  { bgmEl.loop = true;  bgmEl.volume  = CONFIG.bgmVolume; bgmEl.preload  = "auto"; }
+if (purrEl) { purrEl.loop = true; purrEl.volume = 0;                purrEl.preload = "auto"; }
+
+let bgmStarted = false;
+function startBgm() {
+  if (!bgmEl || bgmStarted) return;
+  bgmStarted = true;
+  bgmEl.volume = CONFIG.bgmVolume;
+  const p = bgmEl.play();
+  if (p && p.catch) p.catch(() => {
+    bgmStarted = false;
+    const retry = () => {
+      bgmStarted = false;
+      startBgm();
+      removeEventListener("pointerdown", retry);
+      removeEventListener("keydown", retry);
+    };
+    addEventListener("pointerdown", retry, { once: true });
+    addEventListener("keydown", retry, { once: true });
+  });
+}
+
+function playPokeSfx() {
+  try {
+    if (squeakPool.length) {
+      const a = squeakPool[squeakIdx];
+      squeakIdx = (squeakIdx + 1) % squeakPool.length;
+      a.currentTime = 0;
+      a.volume = .85;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+      return;
+    }
+    const c = getAC(), o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
+    o.frequency.setValueAtTime(720, t); o.frequency.exponentialRampToValueAtTime(1250, t + .1);
+    g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + .2);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + .22);
+  } catch (e) {}
+}
+
+let purrFade = null;
+const clamp01 = v => Math.max(0, Math.min(1, v));
+
+function startPurr() {
+  if (!purrEl) return;
+  clearInterval(purrFade);
+  if (purrEl._target == null) purrEl._target = .55;
+  const p = purrEl.play();
+  if (p && p.catch) p.catch(() => {});
+  purrFade = setInterval(() => {
+    const target = clamp01(purrEl._target);
+    const d = target - purrEl.volume;
+    if (Math.abs(d) < .02) { purrEl.volume = target; clearInterval(purrFade); }
+    else purrEl.volume = clamp01(purrEl.volume + d * .15);
+  }, 60);
+}
+function setPurrTarget(v) { if (purrEl) purrEl._target = clamp01(v); }
+function stopPurr() {
+  if (!purrEl) return;
+  clearInterval(purrFade);
+  const a = purrEl;
+  purrFade = setInterval(() => {
+    a.volume = clamp01(a.volume - .06);
+    if (a.volume <= .01) { a.volume = 0; a.pause(); clearInterval(purrFade); }
+  }, 60);
+}
+
+let ac; const getAC = () => ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+
+/* ============ FLOATING TEXT ============ */
+let talkTimer;
+function say(text, cls) {
+  talk.className = cls || "";
+  talk.textContent = text;
+  const tx = box.x + box.w * CONFIG.bubbleAt.x;
+  const ty = box.y + box.h * CONFIG.bubbleAt.y;
+  talk.style.left = tx + "px";
+  talk.style.top = ty + "px";
+  void talk.offsetWidth;
+  talk.classList.add("show");
+  clearTimeout(talkTimer);
+  const hold = Math.min(2600 + text.length * 60, 8000);
+  talkTimer = setTimeout(() => talk.classList.remove("show"), hold);
+  if (/tail/i.test(text)) boostUntil = performance.now() + 1600;
+}
+
+/* ============ PARTICLES ============ */
+let boostUntil = 0;
+const HEART_HUES = [330, 345, 0, 275, 300, 20];
+function heartSvg(hue) {
+  return svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M16 28C4 19 3 11 8 7.500c3.500-2.500 7 0 8 3 1-3 4.500-5.500 8-3C29 11 28 19 16 28z" fill="hsl(${hue} 85% 68%)"/></svg>`);
+}
+const HEART_IMGS = HEART_HUES.map(h => heartSvg(h));
+function particle(kind, x, y) {
+  let el;
+  if (kind === "heart") {
+    el = new Image();
+    el.src = CONFIG.heart ? heartSrc : HEART_IMGS[Math.random() * HEART_IMGS.length | 0];
+    el.className = "p";
+  }
+  else if (CONFIG.zzz) { el = new Image(); el.src = A(CONFIG.zzz); el.className = "p"; }
+  else { el = document.createElement("span"); el.className = "p"; el.textContent = ["Z", "z", "Z"][Math.random() * 3 | 0]; }
+  const s = .7 + Math.random() * .8, dx = (Math.random() - .5) * 60;
+  el.style.left = x + "px"; el.style.top = y + "px"; stage.appendChild(el);
+  el.animate([
+    { opacity: 0, transform: `translate(0,0) scale(${s * .4})` },
+    { opacity: 1, transform: `translate(${dx / 2}px,-40px) scale(${s})`, offset: .35 },
+    { opacity: 0, transform: `translate(${dx}px,-110px) scale(${s * .8})` }
+  ], { duration: 1800 + Math.random() * 900, easing: "ease-in-out" }).onfinish = () => el.remove();
+}
+function emit() {
+  const h = head();
+  const maxP = mode === "eat" ? 12 : 5;
+  if (stage.querySelectorAll(".p").length >= maxP) return;
+  particle(mode === "sleep" ? "z" : "heart", h.x + h.w * (.15 + Math.random() * .7), h.y + h.h * .2);
+}
+setInterval(emit, 750);
+
+/* ============ POKE ============ */
+const BOUNCES = ["bounce", "hop", "wiggle"];
+let pokeTimer;
+function poke(x, y) {
+  hint.style.opacity = 0; clearTimeout(pokeTimer);
+  rig.classList.remove("sway", "bounce", "hop", "wiggle"); void rig.offsetWidth;
+  let hold = CONFIG.pokeMs;
+  if (mode === "sleep") { setSprite("face", U.surprised); say(pickLine(["sleepPoke"]), "surprised"); hold = 2200; }
+  else {
+    const f = pickFace(); setSprite("face", f.url);
+    say(pickLine(!f.pools.includes("random") && Math.random() < CONFIG.randomChance ? ["random"] : f.pools), f.cls);
+  }
+  mode = "poke"; patTotal = 0; patStage = 0;
+  rig.classList.add(BOUNCES[Math.random() * BOUNCES.length | 0]);
+  playPokeSfx();
+  pokeTimer = setTimeout(() => {
+    mode = "idle"; setSprite("idle", U.open);
+    rig.classList.remove("bounce", "hop", "wiggle");
+  }, hold);
+}
+
+/* ============ PAT ============ */
+let patTick, patN = 0;
+function applyStage(s) {
+  patStage = s;
+  if (s === 1) setSprite("face", U.calm);
+  if (s === 2) { mode = "sleep"; setSprite("sleep", U.sleep); talk.classList.remove("show"); }
+}
+function startPat(x, y) {
+  patting = true; hint.style.opacity = 0; clearTimeout(pokeTimer);
+  rig.classList.remove("bounce", "hop", "wiggle"); rig.classList.add("sway");
+  if (mode !== "sleep") {
+    if (Date.now() - lastPatEnd > 4000) patTotal = 0;
+    if (mode !== "pat") { mode = "pat"; patStage = 0; setSprite("idle", U.open); }
+    say(pickLine(["calm"]), "calm");
+  }
+  startPurr(); setPurrTarget(.45); patN = 0;
+  patTick = setInterval(() => {
+    patTotal += 100; patN++; setPurrTarget(Math.min(.45 + patTotal / 12000, .95));
+    if (mode === "pat") {
+      const s = patTotal >= CONFIG.sleepAfterMs ? 2 : patTotal >= CONFIG.calmAfterMs ? 1 : 0;
+      if (s !== patStage) applyStage(s);
+      if (patStage < 2 && patN % 70 === 0) say(pickLine(["calm"]), "calm");
+    }
+    if (patN % 6 === 0) emit();
+  }, 100);
+}
+function endPat() {
+  patting = false; clearInterval(patTick); stopPurr(); rig.classList.remove("sway"); lastPatEnd = Date.now();
+  setTimeout(() => { if (!patting && mode === "pat") { mode = "idle"; setSprite("idle", U.open); } }, 500);
+}
+
+/* ============ EATING ============ */
+let eatTimers = [];
+function clearEatTimers() { eatTimers.forEach(t => clearTimeout(t)); eatTimers = []; }
+
+function eatPudding() {
+  clearTimeout(pokeTimer);
+  clearEatTimers();
+  rig.classList.remove("sway", "bounce", "hop", "wiggle"); void rig.offsetWidth;
+
+  mode = "eat"; patStage = 0; patTotal = 0;
+  setSpriteKeepEars(U.munch1);
+  scheduleBurst("leftEar"); scheduleBurst("rightEar");
+
+  // alternate munch1/munch2 while chewing
+  let which = 1;
+  const chewLoop = () => {
+    if (mode !== "eat") return;
+    which = which === 1 ? 2 : 1;
+    setSpriteKeepEars(which === 1 ? U.munch1 : U.munch2);
+    eatTimers.push(setTimeout(chewLoop, CONFIG.eat.munchEveryMs));
+  };
+  eatTimers.push(setTimeout(chewLoop, CONFIG.eat.munchEveryMs));
+
+  // finish: munch3 + hop + big hearts, then hold for finishHoldMs
+  eatTimers.push(setTimeout(() => {
+    setSpriteKeepEars(U.munch3);
+    rig.classList.add("hop");
+    scheduleBurst("leftEar"); scheduleBurst("rightEar");
+    say(pickLine(["yum"]), "yum");
+    boostUntil = performance.now() + 5200;   // keep tail happy for the whole finishHold window
+    playPokeSfx();
+
+    const h = head();
+    for (let i = 0; i < 18; i++) {
+      eatTimers.push(setTimeout(() => {
+        const px = h.x + h.w * (Math.random() * 1.0);
+        const py = h.y + h.h * (Math.random() * 0.9);
+        particle("heart", px, py);
+      }, i * 50));
+    }
+
+    // hold munch3 for the full finishHoldMs, THEN back to idle
+    eatTimers.push(setTimeout(() => {
+      rig.classList.remove("hop");
+      mode = "idle"; setSprite("idle", U.open);
+    }, CONFIG.eat.finishHoldMs));
+  }, CONFIG.eat.munchTimeMs));
+}
+
+/* ============ PUDDING DRAG ============ */
+let pudDragEl = null;
+function puddingDown(e) {
+  e.preventDefault(); e.stopPropagation();
+  pudDragEl = document.createElement("img");
+  pudDragEl.src = pudding.src;
+  pudDragEl.className = "pud-drag";
+  pudDragEl.style.left = e.clientX + "px";
+  pudDragEl.style.top  = e.clientY + "px";
+  stage.appendChild(pudDragEl);
+  hand.src = CURSOR_DRAGGING;
+  window.addEventListener("pointermove", puddingMove);
+  window.addEventListener("pointerup", puddingUp);
+  window.addEventListener("pointercancel", puddingUp);
+}
+function puddingMove(e) {
+  if (!pudDragEl) return;
+  pudDragEl.style.left = e.clientX + "px";
+  pudDragEl.style.top  = e.clientY + "px";
+  const near = {
+    x: box.x - box.w * (CONFIG.eat.eatRadius - 1) / 2,
+    y: box.y - box.h * (CONFIG.eat.eatRadius - 1) / 2,
+    w: box.w * CONFIG.eat.eatRadius,
+    h: box.h * CONFIG.eat.eatRadius
+  };
+  pudDragEl.classList.toggle("over-sprite", inside(near, e.clientX, e.clientY));
+  hand.style.left = e.clientX + "px";
+  hand.style.top  = e.clientY + "px";
+}
+function puddingUp(e) {
+  window.removeEventListener("pointermove", puddingMove);
+  window.removeEventListener("pointerup", puddingUp);
+  window.removeEventListener("pointercancel", puddingUp);
+  hand.src = CURSOR_DEFAULT;
+  if (!pudDragEl) return;
+  const near = {
+    x: box.x - box.w * (CONFIG.eat.eatRadius - 1) / 2,
+    y: box.y - box.h * (CONFIG.eat.eatRadius - 1) / 2,
+    w: box.w * CONFIG.eat.eatRadius,
+    h: box.h * CONFIG.eat.eatRadius
+  };
+  const ate = inside(near, e.clientX, e.clientY);
+  const d = pudDragEl; pudDragEl = null;
+  if (ate) {
+    d.style.transition = "transform .25s ease, opacity .25s ease";
+    d.style.transform = "translate(-50%,-50%) scale(.2)";
+    d.style.opacity = "0";
+    setTimeout(() => d.remove(), 260);
+    eatPudding();
+  } else {
+    d.classList.add("pud-puff");
+    setTimeout(() => d.remove(), 500);
+    sadReaction();
+  }
+}
+pudding.addEventListener("pointerdown", puddingDown);
+
+/* sad reaction when pudding dropped too far */
+let sadTimer;
+function sadReaction() {
+  clearTimeout(pokeTimer);
+  clearTimeout(sadTimer);
+  rig.classList.remove("sway", "bounce", "hop", "wiggle"); void rig.offsetWidth;
+  setSprite("face", U.crying);
+  say(pickLine(["sad"]), "crying");
+  mode = "poke";
+  patTotal = 0; patStage = 0;
+  rig.classList.add("bounce");
+  playPokeSfx();
+  sadTimer = setTimeout(() => {
+    rig.classList.remove("bounce");
+    mode = "idle"; setSprite("idle", U.open);
+  }, 2400);
+}
+
+/* ============ TAIL + EARS ============ */
+let tPhase = 0, tSpeed = 3.5, lastTs = 0;
+function rand(a, b) { return a + Math.random() * (b - a); }
+const earState = { leftEar: { queue: [] }, rightEar: { queue: [] } };
+function scheduleBurst(side) {
+  const E = CONFIG.ear, s = earState[side];
+  const count = Math.round(rand(E.burstCountMin, E.burstCountMax + 0.999));
+  s.queue = [];
+  const now = performance.now();
+  for (let i = 0; i < count; i++) s.queue.push({ t0: now + i * E.twitchMs * rand(.9, 1.3) + rand(0, 30), done: false });
+}
+function nextGap() {
+  const E = CONFIG.ear;
+  if (mode === "sleep") return rand(E.sleepGapMin, E.sleepGapMax);
+  if (mode === "eat")   return rand(E.eatGapMin, E.eatGapMax);   // gentler now
+  if (patting || mode === "pat") return rand(E.patGapMin, E.patGapMax);
+  return rand(E.idleGapMin, E.idleGapMax);
+}
+function tickEar(side) { scheduleBurst(side); setTimeout(() => tickEar(side), nextGap()); }
+function earAngle(side, ts) {
+  const E = CONFIG.ear, s = earState[side];
+  let deg = 0;
+  for (const tw of s.queue) {
+    if (tw.done) continue;
+    const k = (ts - tw.t0) / E.twitchMs;
+    if (k >= 1) { tw.done = true; continue; }
+    if (k >= 0) deg += Math.sin(Math.PI * k) * E.twitchAmp;
+  }
+  return deg * (side === "leftEar" ? CONFIG.earSign.leftEar : CONFIG.earSign.rightEar);
+}
+tickEar("leftEar");
+setTimeout(() => tickEar("rightEar"), 900);
+
+function loop(ts) {
+  const dt = Math.min((ts - lastTs) / 1000 || 0, .05); lastTs = ts;
+  let sp = 3.5;
+  if (mode === "sleep") sp = patting ? 5 : 1.8;
+  else if (mode === "eat") sp = 16;                     // happy tail stays fast
+  else if (patting || mode === "pat") sp = 3.5 + Math.min(patTotal / 8000, 1) * 11;
+  else if (mode === "poke") sp = 8;
+  if (ts < boostUntil) sp = Math.max(sp, 18);
+  tSpeed += (sp - tSpeed) * Math.min(dt * 3, 1); tPhase += tSpeed * dt;
+  const amp = Math.min(6 + (tSpeed - 3) * .9, 18) * (mode === "sleep" && !patting ? .5 : 1);
+  imgs.tail.style.transform = `rotate(${Math.sin(tPhase) * amp}deg)`;
+  if (spriteKind !== "face") {
+    imgs.earLeft.style.transform  = `rotate(${earAngle("leftEar",  ts)}deg)`;
+    imgs.earRight.style.transform = `rotate(${earAngle("rightEar", ts)}deg)`;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ============ POINTER HANDLING ============ */
+let down = null, fade;
+function moveHand(e) {
+  hand.style.left = e.clientX + "px"; hand.style.top = e.clientY + "px"; hand.style.opacity = 1; clearTimeout(fade);
+  if (pudDragEl || down) hand.src = CURSOR_DRAGGING;
+  else                   hand.src = CURSOR_DEFAULT;
+  if (e.pointerType === "touch") fade = setTimeout(() => hand.style.opacity = 0, 900);
+}
+stage.addEventListener("pointerdown", e => {
+  moveHand(e);
+  if (!inside(spriteRect(), e.clientX, e.clientY)) return;
+  stage.setPointerCapture(e.pointerId);
+  down = { x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, dist: 0 };
+});
+stage.addEventListener("pointermove", e => {
+  moveHand(e); if (!down) return;
+  down.dist += Math.abs(e.clientX - down.px) + Math.abs(e.clientY - down.py);
+  down.px = e.clientX; down.py = e.clientY;
+  if (!patting && down.dist > CONFIG.patStartPx) startPat(e.clientX, e.clientY);
+});
+stage.addEventListener("pointerup", () => {
+  if (down) {
+    if (patting) endPat();
+    else if (down.dist <= CONFIG.patStartPx) poke(down.x, down.y);
+    down = null;
+  }
+  hand.src = CURSOR_DEFAULT;
+});
+stage.addEventListener("pointercancel", () => {
+  if (patting) endPat();
+  down = null;
+  hand.src = CURSOR_DEFAULT;
+});
+stage.addEventListener("pointerleave", e => {
+  if (e.pointerType !== "touch") hand.style.opacity = 0;
+});
+addEventListener("contextmenu", e => e.preventDefault());
+
+/* ============ START OVERLAY ============ */
+function unlockAudio() {
+  if (tapstart.dataset.done) return;
+  tapstart.dataset.done = "1";
+  tapstart.style.display = "none";
+  try { getAC().resume(); } catch (e) {}
+  startBgm();
+  squeakPool.forEach(a => {
+    a.volume = 0;
+    const p = a.play();
+    if (p && p.then) p.then(() => { a.pause(); a.currentTime = 0; a.volume = .85; }).catch(() => {});
+  });
+}
+tapstart.addEventListener("pointerdown", unlockAudio);
+tapstart.addEventListener("click", unlockAudio);
+addEventListener("keydown", unlockAudio, { once: true });
+
+/* ?debug */
+if (/debug/.test(location.search)) {
+  const panel = document.createElement("pre");
+  panel.style.cssText = "position:absolute;left:8px;top:8px;margin:0;padding:8px;background:#000b;color:#fff;font:12px monospace;z-index:9;pointer-events:none";
+  stage.appendChild(panel);
+  const zone = document.createElement("div"); zone.style.cssText = "position:absolute;border:2px dashed #fff;pointer-events:none;z-index:8"; stage.appendChild(zone);
+  const dots = {}, cols = { leftEar: "#f44", rightEar: "#48f", tail: "#4c4" };
+  const show = () => panel.textContent = "pivots: " + JSON.stringify(CONFIG.pivots).replace(/"/g, "");
+  window.placeDebug = () => {
+    for (const k in dots) { dots[k].style.left = box.x + box.w * CONFIG.pivots[k].x / 100 + "px"; dots[k].style.top = box.y + box.h * CONFIG.pivots[k].y / 100 + "px"; }
+    const r = spriteRect(); Object.assign(zone.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
+  };
+  Object.keys(cols).forEach(k => {
+    const d = dots[k] = document.createElement("div");
+    d.style.cssText = `position:absolute;width:24px;height:24px;margin:-12px;border-radius:50%;border:3px solid #fff;background:${cols[k]};z-index:9;touch-action:none;cursor:grab`;
+    d.addEventListener("pointerdown", e => { e.stopPropagation(); d.setPointerCapture(e.pointerId); d.drag = true; });
+    d.addEventListener("pointermove", e => {
+      if (!d.drag) return; e.stopPropagation();
+      const p = CONFIG.pivots[k]; p.x = Math.round((e.clientX - box.x) / box.w * 1000) / 10; p.y = Math.round((e.clientY - box.y) / box.h * 1000) / 10;
+      const el = k === "tail" ? imgs.tail : k === "leftEar" ? imgs.earLeft : imgs.earRight; el.style.transformOrigin = p.x + "% " + p.y + "%";
+      placeDebug(); show();
+    });
+    d.addEventListener("pointerup", () => d.drag = false);
+    stage.appendChild(d);
+  });
+  show(); placeDebug();
+}
+</script>
+</body>
+</html>
