@@ -1,0 +1,23 @@
+{
+  "name": "Study Session",
+  "short_name": "Study",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#d9b8ec",
+  "theme_color": "#d9b8ec",
+  "icons": [
+    {
+      "src": "https://files.catbox.moe/cmk0s0.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://files.catbox.moe/cmk0s0.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
