@@ -3,31 +3,63 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Study Break Timer</title>
+<title>Study Session</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📚%3C/text%3E%3C/svg%3E">
+<meta name="robots" content="noindex, nofollow">
 <style>
 html,body{height:100%;margin:0;background:#d9b8ec;overflow:hidden;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
 #stage{position:fixed;inset:0;cursor:none;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
-  -webkit-tap-highlight-color:transparent;overflow:hidden;background:#d9b8ec center/cover no-repeat}
-#rig{position:absolute;opacity:0;transition:opacity .4s;transform-origin:50% 85%}
+  -webkit-tap-highlight-color:transparent;overflow:hidden;background:#d9b8ec}
+
+/* pan layer — the bg image is rendered inside this wider track */
+#bgTrack{
+  position:absolute;
+  top:0; left:0;
+  height:100%;
+  z-index:0;
+  will-change:transform;
+  transition:transform .45s cubic-bezier(.2,.7,.3,1);
+}
+#bgTrack.panning{ transition:none; }
+#bgImg{
+  display:block;
+  height:100%;
+  width:auto;
+  pointer-events:none;
+  -webkit-user-drag:none;
+  user-select:none;
+}
+
+#rig,#talk,#hand,#pudding,#hint,#tapstart{ position:absolute; }
+#rig,#talk,#hand,#pudding{ z-index:auto; }
+#talk{z-index:5}
+#rig{
+  opacity:0;
+  transition:opacity .4s, left .5s cubic-bezier(.3,1.3,.5,1), top .5s cubic-bezier(.3,1.3,.5,1);
+  transform-origin:50% 85%;
+  z-index:4;
+}
 #rig img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none;transform-origin:50% 50%}
 #rig.bounce{animation:bounce .7s cubic-bezier(.3,1.6,.5,1)}
 #rig.sway{animation:sway 1.4s ease-in-out infinite alternate}
+#rig.dangle{animation:dangle 1.1s ease-in-out infinite alternate}
+#rig.squirm{animation:squirm .45s ease-in-out infinite}
 @keyframes bounce{0%{transform:scale(1,1)}25%{transform:scale(1.12,.88)}55%{transform:translateY(-3%) scale(.94,1.08)}100%{transform:scale(1,1)}}
 @keyframes sway{0%{transform:rotate(-2deg)}100%{transform:rotate(2deg)}}
 @keyframes hop{0%{transform:translateY(0)}30%{transform:translateY(-14px) scale(1.04)}55%{transform:translateY(0) scale(.96)}75%{transform:translateY(-5px)}100%{transform:translateY(0)}}
 @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}50%{transform:rotate(5deg)}75%{transform:rotate(-3deg)}}
+@keyframes dangle{0%{transform:rotate(-3deg)}100%{transform:rotate(3deg)}}
+@keyframes squirm{0%,100%{transform:rotate(-5deg)}25%{transform:rotate(4deg) translateY(1px)}50%{transform:rotate(-4deg)}75%{transform:rotate(6deg) translateY(-1px)}}
 #rig.hop{animation:hop .8s ease-out}
 #rig.wiggle{animation:wiggle .55s ease-in-out}
 #talk{
-  position:absolute;left:0;top:0;max-width:min(82vw,360px);
+  max-width:min(82vw,360px);
   box-sizing:border-box;padding:6px 10px;
   color:#5b3a63;font-weight:900;font-size:22px;line-height:1.2;text-align:center;
   pointer-events:none;opacity:0;
   transform:translate(-50%,-50%) scale(.85);
   transition:opacity .4s ease, transform .5s cubic-bezier(.3,1.6,.5,1);
   text-shadow:0 2px 0 #fff, 0 0 12px #fff, 0 0 4px #fff;
-  z-index:5
 }
 #talk.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
 #talk.excited{font-size:24px;color:#e0457b}
@@ -36,16 +68,16 @@ html,body{height:100%;margin:0;background:#d9b8ec;overflow:hidden;font-family:"T
 #talk.calm{font-size:19px;color:#4f7f9c}
 #talk.love{color:#d13a78}
 #talk.yum{color:#e07a2a}
-.p{position:absolute;pointer-events:none;opacity:0}
+.p{position:absolute;pointer-events:none;opacity:0;z-index:6}
 img.p{width:26px;height:26px}
 span.p{font:900 28px "Trebuchet MS",sans-serif;color:#a879e0;text-shadow:0 2px 0 #fff}
-#hand{position:absolute;left:0;top:0;width:96px;pointer-events:none;opacity:0;transition:opacity .25s;transform:translate(-30%,-15%);z-index:6}
-#hint{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);left:0;right:0;text-align:center;color:#5b3a63;opacity:.75;font-size:15px;pointer-events:none;transition:opacity .6s}
+#hand{left:0;top:0;width:clamp(64px, 17vw, 110px);pointer-events:none;opacity:0;transition:opacity .25s;transform:translate(-30%,-15%);z-index:8}
+#hint{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);left:0;right:0;text-align:center;color:#5b3a63;opacity:.75;font-size:15px;pointer-events:none;transition:opacity .6s;z-index:7}
 #tapstart{position:absolute;inset:0;display:grid;place-items:center;background:#d9b8eccc;color:#5b3a63;font-weight:900;font-size:20px;text-align:center;padding:20px;z-index:20;cursor:pointer}
 
 #pudding{
-  position:absolute;
-  width:80px;height:80px;
+  width:clamp(56px, 14vw, 88px);
+  height:clamp(56px, 14vw, 88px);
   pointer-events:auto;cursor:grab;z-index:7;
   filter:drop-shadow(0 6px 8px #0003);
   transition:transform .25s cubic-bezier(.3,1.6,.5,1);
@@ -56,8 +88,10 @@ span.p{font:900 28px "Trebuchet MS",sans-serif;color:#a879e0;text-shadow:0 2px 0
 #pudding:active{cursor:grabbing}
 
 .pud-drag{
-  position:absolute;width:80px;height:80px;
-  pointer-events:none;z-index:8;
+  position:absolute;
+  width:clamp(56px, 14vw, 88px);
+  height:clamp(56px, 14vw, 88px);
+  pointer-events:none;z-index:9;
   filter:drop-shadow(0 6px 10px #0005);
   transform:translate(-50%,-50%) scale(1.1) rotate(-6deg);
   transition:transform .15s;
@@ -67,7 +101,10 @@ span.p{font:900 28px "Trebuchet MS",sans-serif;color:#a879e0;text-shadow:0 2px 0
   filter:drop-shadow(0 0 14px #ffb8dc) drop-shadow(0 6px 10px #0005);
 }
 .pud-puff{
-  position:absolute;width:80px;height:80px;pointer-events:none;z-index:8;
+  position:absolute;
+  width:clamp(56px, 14vw, 88px);
+  height:clamp(56px, 14vw, 88px);
+  pointer-events:none;z-index:9;
   animation:pudPuff .5s ease-out forwards;
 }
 @keyframes pudPuff{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(.2) rotate(40deg)}}
@@ -75,6 +112,7 @@ span.p{font:900 28px "Trebuchet MS",sans-serif;color:#a879e0;text-shadow:0 2px 0
 </head>
 <body>
 <div id="stage">
+  <div id="bgTrack"><img id="bgImg" alt=""></div>
   <div id="rig"></div>
   <div id="talk"></div>
   <img id="hand" alt="">
@@ -86,8 +124,7 @@ span.p{font:900 28px "Trebuchet MS",sans-serif;color:#a879e0;text-shadow:0 2px 0
 /* ================= EDIT ME ================= */
 const CONFIG = {
   dir: "",
-  bgDesktop: "https://files.catbox.moe/6orceu.png",
-  bgMobile:  "https://files.catbox.moe/64r4zb.png",
+  bgImage: "https://files.catbox.moe/6orceu.png",
   idleOpen:   "https://files.catbox.moe/cmk0s0.png",
   idleClosed: "https://files.catbox.moe/8ymoch.png",
   sleep:      "https://files.catbox.moe/f04vya.png",
@@ -97,11 +134,10 @@ const CONFIG = {
 
   munch1: "https://files.catbox.moe/umnltz.png",
   munch2: "https://files.catbox.moe/anxjbz.png",
-  munch3: "https://files.catbox.moe/lm4rbi.png",   // finish/hop frame
+  munch3: "https://files.catbox.moe/lm4rbi.png",
 
   pudding: "https://files.catbox.moe/knqv2y.png",
 
-  // default = plain hand; dragging = petting hand
   cursorHand: "https://files.catbox.moe/q9z9r8.png",
   cursorPet:  "https://files.catbox.moe/g94iwi.png",
 
@@ -122,22 +158,21 @@ const CONFIG = {
   patStartPx: 30, calmAfterMs: 3500, sleepAfterMs: 10000, pokeMs: 1500,
   randomChance: .16, blinkMin: 2000, blinkMax: 5000, blinkHold: 130,
 
-  eat: {
-    munchEveryMs: 170,
-    munchTimeMs: 1800,
-    finishHoldMs: 5000,   // <-- 5 seconds of the happy finish pose 🍮
-    eatRadius: .85
-  },
-
-  // EARS: much calmer now (gentler amplitude, longer gaps, fewer per burst)
+  eat: { munchEveryMs: 170, munchTimeMs: 1800, finishHoldMs: 5000, eatRadius: .85 },
   ear: {
     idleGapMin: 4500, idleGapMax: 9000,
     patGapMin: 2000,  patGapMax: 4000,
     sleepGapMin: 7000, sleepGapMax: 12000,
-    eatGapMin:  1200, eatGapMax:  2400,   // was a fixed 250ms — way too twitchy
-    burstCountMin: 1, burstCountMax: 2,   // was 2–3
-    twitchMs: 200,                        // slower per twitch (was 160)
-    twitchAmp: 4                          // much smaller angle (was 9)
+    eatGapMin:  1200, eatGapMax:  2400,
+    burstCountMin: 1, burstCountMax: 2,
+    twitchMs: 200, twitchAmp: 4
+  },
+
+  pick: { holdMs: 350, moveTolPx: 22, cryAfterMs: 6000, returnMs: 520 },
+
+  pan: {
+    speed: 1.0,      // 1 = bg follows finger 1:1
+    overScroll: 0    // extra room past the edges (0 = hard stop at image ends)
   }
 };
 
@@ -208,7 +243,22 @@ const DIALOGUE = {
     `H-HUH…? Where'd it go…? 🥺`, `It… it fell… 😭`, `PUDDING NOOOO`,
     `...was it something I said? 🥺`, `Come back… pwease…`, `My heart… my pudding…`,
     `I'll just… sit here… 🥺`, `THE PUDDING FLEW AWAY…`, `Did I do something wrong…?`,
-    `Oh… okay… I didn't need it anyway… 🥺`]
+    `Oh… okay… I didn't need it anyway… 🥺`],
+  pickSurprise: [
+    `H-HUH?!`, `WAH—!`, `WH—WHERE ARE WE GOING?!`, `HOLD ON HOLD ON HOLD ON—`,
+    `?!?!?!`, `I'M FLYING???`, `OH NO OH NO OH NO`, `THIS ISN'T THE FLOOR.`],
+  pickHappy: [
+    `WHEEEEE!!! ✨`, `I CAN SEE EVERYTHING FROM UP HERE!!`, `HEHEHE HI AGAIN`,
+    `I'M SO TALL NOW!!`, `THIS IS THE BEST DAY EVER 💜`, `CARRY ME FOREVER PLS`,
+    `I FEEL SO LOVED 🥺💕`, `LOOK AT ME GO!!`, `BEST. RIDE. EVER.`,
+    `I LOVE BEING HELD BY YOU`],
+  pickSad: [
+    `P-PUT ME DOWN…? 🥺`, `I'M GETTING DIZZY…`, `TOO HIGH… TOO HIGH… 😭`,
+    `I DON'T FEEL SO GOOD…`, `C-CAN WE GO BACK DOWN…? 🥺`, `M-MY TUMMY…`,
+    `PLEASEEEE I'LL BE GOOD 🥺`, `I THINK I NEED THE FLOOR…`],
+  pickDrop: [
+    `OH—`, `WAHHH`, `*THUD*`, `I'M OKAY— I'M OKAY.`, `okay that was fun actually`,
+    `AGAIN!! AGAIN!!`, `did i stick the landing?`, `WHOOSH!`, `HEHEHE`]
 };
 /* ============== END EDIT ME ============== */
 
@@ -222,7 +272,7 @@ const PH = {
 const A = f => /^(https?:|data:|\/)/i.test(f) ? f : CONFIG.dir + f;
 
 const $ = id => document.getElementById(id);
-const stage = $("stage"), rig = $("rig"), talk = $("talk"), hand = $("hand"), hint = $("hint"), tapstart = $("tapstart"), pudding = $("pudding");
+const stage = $("stage"), bgTrack = $("bgTrack"), bgImg = $("bgImg"), rig = $("rig"), talk = $("talk"), hand = $("hand"), hint = $("hint"), tapstart = $("tapstart"), pudding = $("pudding");
 const U = {
   open: A(CONFIG.idleOpen),
   closed: A(CONFIG.idleClosed),
@@ -230,6 +280,7 @@ const U = {
   calm: A(URL_CALM),
   surprised: A(URL_SURPRISED),
   crying: A(URL_CRYING),
+  blee: A(URL_BLEE),
   munch1: A(CONFIG.munch1),
   munch2: A(CONFIG.munch2),
   munch3: A(CONFIG.munch3)
@@ -241,10 +292,9 @@ const CURSOR_DRAGGING = CONFIG.cursorPet  ? A(CONFIG.cursorPet)  : PH.hand;
 hand.src = CURSOR_DEFAULT;
 
 pudding.src = CONFIG.pudding ? A(CONFIG.pudding) : PH.pudding;
+bgImg.src = A(CONFIG.bgImage);
 
-/* layers */
 const imgs = { sprite: new Image(), tail: new Image(), earLeft: new Image(), earRight: new Image() };
-["sprite", "tail", "earLeft", "earRight"].forEach(k => imgs[k].crossOrigin = "anonymous");
 imgs.tail.src = A(CONFIG.tail); imgs.earLeft.src = A(CONFIG.earLeft); imgs.earRight.src = A(CONFIG.earRight);
 CONFIG.layers.forEach(k => rig.appendChild(imgs[k]));
 const sprite = imgs.sprite; sprite.src = U.open;
@@ -283,26 +333,82 @@ function setSpriteKeepEars(url) {
   imgs.earLeft.style.display = imgs.earRight.style.display = "block";
 }
 
-/* layout */
-function layout() {
+/* home position */
+const HOME = { x: 0, y: 0, w: 0, h: 0 };
+function computeHome() {
   if (!nw) return;
   const W = innerWidth, H = innerHeight;
   const s = Math.min(CONFIG.size.vw * W / nw, CONFIG.size.vh * H / nh, CONFIG.size.maxPx / Math.max(nw, nh));
-  box = { w: nw * s, h: nh * s }; box.x = W * CONFIG.anchor.x - box.w / 2; box.y = H * CONFIG.anchor.y - box.h / 2;
+  HOME.w = nw * s; HOME.h = nh * s;
+  HOME.x = W * CONFIG.anchor.x - HOME.w / 2;
+  HOME.y = H * CONFIG.anchor.y - HOME.h / 2;
+}
+
+/* ---------- background sizing (wallpaper style) ----------
+   bgImg has height:100% and width:auto — so the image fills vertically
+   and its natural aspect ratio determines how wide it becomes.
+   If that width < viewport, we scale it up so height still fills.
+   If width > viewport, we have left/right room to pan.
+------------------------------------------------------------ */
+const bgMetrics = { width: 0, height: 0, imgNaturalW: 0, imgNaturalH: 0 };
+function sizeBackground() {
+  const W = innerWidth, H = innerHeight;
+  const natW = bgImg.naturalWidth  || 1920;
+  const natH = bgImg.naturalHeight || 1080;
+
+  // Fill vertically: image height = screen height
+  // Then width = height * (natW/natH)
+  let h = H;
+  let w = h * (natW / natH);
+
+  // Ensure the image is at least as wide as the screen (so nothing shows through)
+  if (w < W) {
+    // scale up until width matches
+    const scale = W / w;
+    w = W;
+    h = h * scale;
+  }
+
+  bgMetrics.width = w;
+  bgMetrics.height = h;
+  bgMetrics.imgNaturalW = natW;
+  bgMetrics.imgNaturalH = natH;
+
+  // Set the track width and img size explicitly
+  bgTrack.style.width  = w + "px";
+  bgTrack.style.height = h + "px";
+  bgTrack.style.top    = ((H - h) / 2) + "px";   // center vertically if taller
+  bgImg.style.width    = w + "px";
+  bgImg.style.height   = h + "px";
+
+  // Pan range: how far left/right we can slide
+  panMaxX = Math.max(0, (w - W) / 2);
+  pan.offsetX = clamp(-panMaxX, panMaxX, pan.offsetX);
+  applyBgTransform();
+}
+
+function layout() {
+  if (!nw) return;
+  computeHome();
+  if (!pickup.active && !returning) {
+    box = { x: HOME.x, y: HOME.y, w: HOME.w, h: HOME.h };
+  } else {
+    box.w = HOME.w; box.h = HOME.h;
+  }
   Object.assign(rig.style, { width: box.w + "px", height: box.h + "px", left: box.x + "px", top: box.y + "px" });
-  stage.style.backgroundImage = `url(${A(matchMedia("(orientation:portrait)").matches ? CONFIG.bgMobile : CONFIG.bgDesktop)})`;
+  sizeBackground();
   placePuddingInFront();
   if (window.placeDebug) placeDebug();
 }
+
 function placePuddingInFront() {
-  const pw = pudding.offsetWidth || 80, ph = pudding.offsetHeight || 80;
-  const cx = box.x + box.w * 0.5;
-  const cy = box.y + box.h * 0.98;
+  const pw = pudding.offsetWidth || 72, ph = pudding.offsetHeight || 72;
+  const cx = HOME.x + HOME.w * 0.5;
+  const cy = HOME.y + HOME.h * 0.98;
   pudding.style.left = (cx - pw / 2) + "px";
   pudding.style.top  = (cy - ph * 0.55) + "px";
 }
 const base = new Image();
-base.crossOrigin = "anonymous";
 base.onload = () => { nw = base.naturalWidth; nh = base.naturalHeight; layout(); rig.style.opacity = 1; };
 base.onerror = () => {
   rig.style.opacity = 1;
@@ -315,6 +421,8 @@ base.onerror = () => {
 };
 base.src = U.open;
 addEventListener("resize", layout);
+addEventListener("orientationchange", () => setTimeout(layout, 120));
+bgImg.addEventListener("load", () => { if (nw) sizeBackground(); });
 
 const spriteRect = () => ({ x: box.x, y: box.y, w: box.w, h: box.h });
 const head = () => { const z = CONFIG.headZone; return { x: box.x + box.w * (z.x - z.w / 2), y: box.y + box.h * (z.y - z.h / 2), w: box.w * z.w, h: box.h * z.h }; };
@@ -420,8 +528,8 @@ let talkTimer;
 function say(text, cls) {
   talk.className = cls || "";
   talk.textContent = text;
-  const tx = box.x + box.w * CONFIG.bubbleAt.x;
-  const ty = box.y + box.h * CONFIG.bubbleAt.y;
+  const tx = HOME.x + HOME.w * CONFIG.bubbleAt.x;
+  const ty = HOME.y + HOME.h * CONFIG.bubbleAt.y;
   talk.style.left = tx + "px";
   talk.style.top = ty + "px";
   void talk.offsetWidth;
@@ -469,7 +577,7 @@ const BOUNCES = ["bounce", "hop", "wiggle"];
 let pokeTimer;
 function poke(x, y) {
   hint.style.opacity = 0; clearTimeout(pokeTimer);
-  rig.classList.remove("sway", "bounce", "hop", "wiggle"); void rig.offsetWidth;
+  rig.classList.remove("sway", "bounce", "hop", "wiggle", "dangle", "squirm"); void rig.offsetWidth;
   let hold = CONFIG.pokeMs;
   if (mode === "sleep") { setSprite("face", U.surprised); say(pickLine(["sleepPoke"]), "surprised"); hold = 2200; }
   else {
@@ -523,13 +631,12 @@ function clearEatTimers() { eatTimers.forEach(t => clearTimeout(t)); eatTimers =
 function eatPudding() {
   clearTimeout(pokeTimer);
   clearEatTimers();
-  rig.classList.remove("sway", "bounce", "hop", "wiggle"); void rig.offsetWidth;
+  rig.classList.remove("sway", "bounce", "hop", "wiggle", "dangle", "squirm"); void rig.offsetWidth;
 
   mode = "eat"; patStage = 0; patTotal = 0;
   setSpriteKeepEars(U.munch1);
   scheduleBurst("leftEar"); scheduleBurst("rightEar");
 
-  // alternate munch1/munch2 while chewing
   let which = 1;
   const chewLoop = () => {
     if (mode !== "eat") return;
@@ -539,13 +646,12 @@ function eatPudding() {
   };
   eatTimers.push(setTimeout(chewLoop, CONFIG.eat.munchEveryMs));
 
-  // finish: munch3 + hop + big hearts, then hold for finishHoldMs
   eatTimers.push(setTimeout(() => {
     setSpriteKeepEars(U.munch3);
     rig.classList.add("hop");
     scheduleBurst("leftEar"); scheduleBurst("rightEar");
     say(pickLine(["yum"]), "yum");
-    boostUntil = performance.now() + 5200;   // keep tail happy for the whole finishHold window
+    boostUntil = performance.now() + 5200;
     playPokeSfx();
 
     const h = head();
@@ -557,7 +663,6 @@ function eatPudding() {
       }, i * 50));
     }
 
-    // hold munch3 for the full finishHoldMs, THEN back to idle
     eatTimers.push(setTimeout(() => {
       rig.classList.remove("hop");
       mode = "idle"; setSprite("idle", U.open);
@@ -622,12 +727,11 @@ function puddingUp(e) {
 }
 pudding.addEventListener("pointerdown", puddingDown);
 
-/* sad reaction when pudding dropped too far */
 let sadTimer;
 function sadReaction() {
   clearTimeout(pokeTimer);
   clearTimeout(sadTimer);
-  rig.classList.remove("sway", "bounce", "hop", "wiggle"); void rig.offsetWidth;
+  rig.classList.remove("sway", "bounce", "hop", "wiggle", "dangle", "squirm"); void rig.offsetWidth;
   setSprite("face", U.crying);
   say(pickLine(["sad"]), "crying");
   mode = "poke";
@@ -639,6 +743,120 @@ function sadReaction() {
     mode = "idle"; setSprite("idle", U.open);
   }, 2400);
 }
+
+/* ============ PICK UP ============ */
+const pickup = {
+  active: false,
+  holdTimer: null,
+  cryTimer: null,
+  offsetX: 0, offsetY: 0,
+  happy: false
+};
+let returning = false;
+
+function beginPickup(e) {
+  pickup.active = true;
+  pickup.happy = false;
+  pickup.offsetX = (e.clientX - box.x) / box.w;
+  pickup.offsetY = (e.clientY - box.y) / box.h;
+
+  clearTimeout(pokeTimer);
+  clearTimeout(sadTimer);
+  clearEatTimers();
+  if (patting) endPat();
+  rig.classList.remove("sway", "bounce", "hop", "wiggle", "dangle", "squirm"); void rig.offsetWidth;
+
+  setSprite("face", U.surprised);
+  say(pickLine(["pickSurprise"]), "surprised");
+  mode = "pickup";
+
+  setTimeout(() => {
+    if (!pickup.active) return;
+    setSprite("face", U.blee);
+    pickup.happy = true;
+    say(pickLine(["pickHappy"]), "excited");
+    rig.classList.add("dangle");
+  }, 500);
+
+  pickup.cryTimer = setTimeout(() => {
+    if (!pickup.active) return;
+    rig.classList.remove("dangle");
+    setSprite("face", U.crying);
+    pickup.happy = false;
+    say(pickLine(["pickSad"]), "crying");
+    rig.classList.add("squirm");
+  }, CONFIG.pick.cryAfterMs);
+
+  movePickup(e);
+  playPokeSfx();
+}
+
+function movePickup(e) {
+  if (!pickup.active) return;
+  const nx = e.clientX - box.w * pickup.offsetX;
+  const ny = e.clientY - box.h * pickup.offsetY;
+  box.x = nx; box.y = ny;
+  rig.style.left = nx + "px";
+  rig.style.top  = ny + "px";
+}
+
+function endPickup() {
+  if (!pickup.active) return;
+  pickup.active = false;
+  clearTimeout(pickup.cryTimer);
+  rig.classList.remove("dangle", "squirm");
+
+  say(pickLine(["pickDrop"]), pickup.happy ? "excited" : "surprised");
+  playPokeSfx();
+
+  returning = true;
+  rig.classList.add("bounce");
+  rig.style.transition = `left ${CONFIG.pick.returnMs}ms cubic-bezier(.3,1.3,.5,1), top ${CONFIG.pick.returnMs}ms cubic-bezier(.3,1.3,.5,1), opacity .4s`;
+  box.x = HOME.x; box.y = HOME.y;
+  rig.style.left = HOME.x + "px";
+  rig.style.top  = HOME.y + "px";
+
+  setTimeout(() => {
+    rig.classList.remove("bounce");
+    rig.style.transition = "";
+    returning = false;
+    mode = "idle";
+    setSprite("idle", U.open);
+    layout();
+  }, CONFIG.pick.returnMs + 260);
+}
+
+/* ============ BACKGROUND PAN ============ */
+const pan = { offsetX: 0, dragging: false, id: null, sx: 0, ox: 0 };
+let panMaxX = 0;
+
+function applyBgTransform() {
+  // translate the track left/right around its centered position
+  const x = (bgMetrics.width - innerWidth) / -2 + pan.offsetX;
+  bgTrack.style.transform = `translateX(${x}px)`;
+}
+function bgPanStart(e) {
+  if (panMaxX <= 0) return false;             // nothing to pan (fits screen)
+  if (inside(spriteRect(), e.clientX, e.clientY)) return false;
+  pan.dragging = true;
+  pan.id = e.pointerId;
+  pan.sx = e.clientX;
+  pan.ox = pan.offsetX;
+  bgTrack.classList.add("panning");
+  return true;
+}
+function bgPanMove(e) {
+  if (!pan.dragging || e.pointerId !== pan.id) return;
+  const dx = (e.clientX - pan.sx) * CONFIG.pan.speed;
+  pan.offsetX = clamp(-panMaxX, panMaxX, pan.ox + dx);
+  applyBgTransform();
+}
+function bgPanEnd() {
+  if (!pan.dragging) return;
+  pan.dragging = false;
+  bgTrack.classList.remove("panning");
+}
+function clamp(a, b, v) { return Math.max(a, Math.min(b, v)); }
 
 /* ============ TAIL + EARS ============ */
 let tPhase = 0, tSpeed = 3.5, lastTs = 0;
@@ -654,7 +872,7 @@ function scheduleBurst(side) {
 function nextGap() {
   const E = CONFIG.ear;
   if (mode === "sleep") return rand(E.sleepGapMin, E.sleepGapMax);
-  if (mode === "eat")   return rand(E.eatGapMin, E.eatGapMax);   // gentler now
+  if (mode === "eat")   return rand(E.eatGapMin, E.eatGapMax);
   if (patting || mode === "pat") return rand(E.patGapMin, E.patGapMax);
   return rand(E.idleGapMin, E.idleGapMax);
 }
@@ -677,7 +895,8 @@ function loop(ts) {
   const dt = Math.min((ts - lastTs) / 1000 || 0, .05); lastTs = ts;
   let sp = 3.5;
   if (mode === "sleep") sp = patting ? 5 : 1.8;
-  else if (mode === "eat") sp = 16;                     // happy tail stays fast
+  else if (mode === "eat") sp = 16;
+  else if (mode === "pickup") sp = 10;
   else if (patting || mode === "pat") sp = 3.5 + Math.min(patTotal / 8000, 1) * 11;
   else if (mode === "poke") sp = 8;
   if (ts < boostUntil) sp = Math.max(sp, 18);
@@ -696,32 +915,67 @@ requestAnimationFrame(loop);
 let down = null, fade;
 function moveHand(e) {
   hand.style.left = e.clientX + "px"; hand.style.top = e.clientY + "px"; hand.style.opacity = 1; clearTimeout(fade);
-  if (pudDragEl || down) hand.src = CURSOR_DRAGGING;
+  if (pudDragEl || down || pickup.active) hand.src = CURSOR_DRAGGING;
   else                   hand.src = CURSOR_DEFAULT;
   if (e.pointerType === "touch") fade = setTimeout(() => hand.style.opacity = 0, 900);
 }
+
 stage.addEventListener("pointerdown", e => {
   moveHand(e);
-  if (!inside(spriteRect(), e.clientX, e.clientY)) return;
-  stage.setPointerCapture(e.pointerId);
-  down = { x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, dist: 0 };
+
+  if (inside(spriteRect(), e.clientX, e.clientY)) {
+    stage.setPointerCapture(e.pointerId);
+    down = { x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, dist: 0, moved: false, id: e.pointerId };
+
+    down.holdTimer = setTimeout(() => {
+      if (!down || down.moved || down.dist > CONFIG.pick.moveTolPx) return;
+      down.pickingUp = true;
+      beginPickup(e);
+    }, CONFIG.pick.holdMs);
+    return;
+  }
+
+  if (bgPanStart(e)) {
+    stage.setPointerCapture(e.pointerId);
+  }
 });
+
 stage.addEventListener("pointermove", e => {
-  moveHand(e); if (!down) return;
+  moveHand(e);
+
+  if (pickup.active) { movePickup(e); return; }
+  if (pan.dragging) { bgPanMove(e); return; }
+  if (!down) return;
+
   down.dist += Math.abs(e.clientX - down.px) + Math.abs(e.clientY - down.py);
   down.px = e.clientX; down.py = e.clientY;
-  if (!patting && down.dist > CONFIG.patStartPx) startPat(e.clientX, e.clientY);
+  if (down.dist > CONFIG.pick.moveTolPx) down.moved = true;
+
+  if (!down.pickingUp && down.moved) {
+    clearTimeout(down.holdTimer);
+    if (!patting && down.dist > CONFIG.patStartPx) startPat(e.clientX, e.clientY);
+  }
 });
-stage.addEventListener("pointerup", () => {
+
+stage.addEventListener("pointerup", e => {
+  if (pickup.active) { endPickup(); hand.src = CURSOR_DEFAULT; return; }
+  if (pan.dragging) { bgPanEnd(); hand.src = CURSOR_DEFAULT; }
+
   if (down) {
-    if (patting) endPat();
-    else if (down.dist <= CONFIG.patStartPx) poke(down.x, down.y);
+    clearTimeout(down.holdTimer);
+    if (!down.pickingUp) {
+      if (patting) endPat();
+      else if (down.dist <= CONFIG.patStartPx) poke(down.x, down.y);
+    }
     down = null;
   }
   hand.src = CURSOR_DEFAULT;
 });
 stage.addEventListener("pointercancel", () => {
+  if (pickup.active) endPickup();
+  if (pan.dragging) bgPanEnd();
   if (patting) endPat();
+  if (down) clearTimeout(down.holdTimer);
   down = null;
   hand.src = CURSOR_DEFAULT;
 });
